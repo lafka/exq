@@ -1,0 +1,27 @@
+- Need to have
+ - add deep access:
+   `appliance.restarts != []
+ - Add support for list constructs
+  - add element access: `"first-element" == list.0`
+  - add negative element access: `"last-element" == list.-1`
+ - Add support for tuple constructs
+  - element access: `:ok == touple.0`
+ - Support for strings
+
+Nice to have:
+ - String wildcards "2015-05-03T*"
+ - Pattern matching
+  - `{_, :running} = state`
+  - String composition: `"c" === string#3` where string = "a:b:c"
+  - String composition2: `["b","c"] === string#2:3` where string = "a:b:c"
+  - match on string deconstruct (ie. topic branch):
+    topic = "a:b:c"
+	 match = "a:*:x" || "a:*:a,b,c" || "a:*:!d"
+
+Think about:
+ - data conversion:
+  proto/tm = ~base64/raw where proto/tm.rssi > 80
+ - calculations:
+   - make a product of some sort:
+	 - min, max, avg values
+
