@@ -3,7 +3,7 @@ defmodule ExQuery.Mixfile do
 
   def project do
     [
-      app: :exq,
+      app: :exquery,
       description: "Library for generating functions to match collection of maps",
       version: "0.0.1",
       elixir: "~> 1.0",
