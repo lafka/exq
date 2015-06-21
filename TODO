@@ -6,6 +6,7 @@
   - add negative element access: `"last-element" == list.-1`
  - Add support for tuple constructs
   - element access: `:ok == touple.0`
+ - Add support for grouping `(a == b or a == c) and b == 2`
 
 Nice to have:
  - String wildcards "2015-05-03T*"

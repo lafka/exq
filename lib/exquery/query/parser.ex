@@ -58,31 +58,24 @@ defmodule ExQuery.Query.Parser do
 
   defp tokenize(buf), do: tokenize(buf, %{})
   defp tokenize("", vars), do: {[], vars}
-  defp tokenize(<<byte :: binary-size(1), rest :: binary()>> = t, vars) when byte in ["\"", "'"] do
-    # fix strings
-    [string | rest] = Regex.split ~r/(?![^\\])#{byte}/, rest, parts: 2
-    {tokens, vars} = tokenize tail_to_string(rest), vars
-    {[ trim_quotes(string, byte) | tokens ], vars}
-  end
-  defp tokenize(buf, vars) do
-    [token | rest ] = String.split buf, " ", parts: 2
-    {token, vars} = map_token token, vars
-
-    {tokens, vars} = tokenize tail_to_string(rest), vars
-    {[ token | tokens ], vars}
-  end
-
-  defp tail_to_string([]), do: ""
-  defp tail_to_string([rest]), do: rest
-  defp trim_quotes(buf, byte) do
-    case String.ends_with? buf, byte do
-      true ->
-        String.replace(buf, ~r/\\#{byte}/, byte)
-                      |> String.replace ~r/#{byte}$/, ""
-
-      false ->
+  defp tokenize(<<byte :: binary-size(1), rest :: binary()>>, vars) when byte in ["\"", "'"] do
+    matched? = String.ends_with? rest, byte
+    [string, rest] = case String.split rest, byte, parts: 2 do
+      [string] when matched? -> [string, ""]
+      [string, rest] -> [string, rest]
+      [_string] ->
         raise ParseException , message: "could not find matching quote `#{byte}`"
     end
+
+    {tokens, vars} = tokenize rest, vars
+    {[ string | tokens ], vars}
+  end
+  defp tokenize(buf, vars) do
+    [token | rest ] = String.split buf, " ", parts: 2, trim: true
+    {token, vars} = map_token token, vars
+
+    {tokens, vars} = tokenize Enum.join(rest), vars
+    {[ token | tokens ], vars}
   end
 
   defp map_token(":" <> atom, vars), do: {to_atom(atom), vars}
@@ -136,25 +129,12 @@ defmodule ExQuery.Query.Parser do
   end
 
 
-  # acc := {%{} for destruction, current ast()}
   # rewrite groups to ast nodes
   defp tokens_to_ast([], acc), do: acc
   defp tokens_to_ast([ [_|_] = group | rest], {clause, currexpr}) do
     {clause, expr} = tokens_to_ast group, {clause, nil}
     tokens_to_ast [expr | rest], {clause, expr}
   end
-#  defp tokens_to_ast(["(" | rest], {clause, currexpr} = acc) do
-#    {group, [gend | rest]} = Enum.split_while rest, &( ! String.ends_with?(&1, ")") )
-#    group = group ++ [String.replace(gend, ~r/\)$/, "")]
-#    {clause, expr} = tokens_to_ast group, {clause, nil}
-#    tokens_to_ast [expr | rest], {clause, currexpr}
-#  end
-#  defp tokens_to_ast(["(" <> buf | rest], acc), do:
-#    tokens_to_ast(["(", buf | rest], acc)
-
-  #defp tokens_to_ast([token | _] = tokens, _acc) when token in @tokens do
-  #  raise ParseException, message: "missing left hand expr in `#{Enum.join(tokens, " ")}`"
-  #end
 
   # return last argument
   defp tokens_to_ast([e], {clause, _currexpr} ) do
@@ -163,9 +143,6 @@ defmodule ExQuery.Query.Parser do
 
   for token <- @tokens do
     fun = String.to_atom(token)
-    #defp tokens_to_ast([lhs, unquote(token)], _acc) do
-    #  raise ParseException, message: "missing right hand expr for #{lhs} #{unquote(token)}"
-    #end
 
     defp tokens_to_ast([lhs, unquote(token) | rhs], {clause, _expr} = acc) do
       {clause, rhs} = tokens_to_ast rhs, {clause, nil}
@@ -175,38 +152,4 @@ defmodule ExQuery.Query.Parser do
       {clause, expr}
     end
   end
-
-
-  # Fix strings
-  #defp tokens_to_ast([<<byte :: binary-size(1), _ :: binary>> = buf | rest], acc)
-  #  when byte in ["'", "\""] do
-
-  #  {buf, rest} = case Enum.split_while [buf | rest], &( ! String.ends_with?(&1, byte) ) do
-  #    {a, []} ->
-  #      {Enum.join(a, " "), []}
-
-  #    {a, [last | b]} ->
-  #      {Enum.join(a ++ [last], " "), b}
-  #  end
-
-  #  case String.split_at buf, -1 do
-  #    {_buf, ^byte} ->
-  #      tokens_to_ast [buf | rest], acc
-
-  #    _ ->
-  #      raise ParseException, message: "error find matching `#{byte}` quote"
-  #  end
-  #end
-
-  ## If nothing above matches someone fucked up
-  #defp tokens_to_ast(expr, acc) when is_list(expr) do
-  #  raise ParseException, message: "extra syntax at end: #{Enum.join(expr, " ")}"
-  #end
-  #defp tokens_to_ast(expr, acc) do
-  #  raise ParseException, message: "extra syntax at end: #{inspect expr}"
-  #end
-
-#[{{:., [], [{:x, [], Exq.Query.Parser}, :varname]}, [], []},
-#[{{:., [], [{:x, [], Exq.Query.Parser}, :lvarname]}, [], []}, {"key", [], []}]}
-
 end
