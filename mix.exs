@@ -1,4 +1,4 @@
-defmodule Exq.Mixfile do
+defmodule ExQuery.Mixfile do
   use Mix.Project
 
   def project do

@@ -1,4 +1,4 @@
-# EXQ - Elixir Query
+# EXQuery - Elixir Query
 
 Functionality to help querying data.
 
@@ -25,7 +25,7 @@ iex(1)> collection = [
  %{"timestamp" => 1434847417, "sensor" => "temp", "value" => 22.1},
 ]
 
-iex(2)> collection |> Enum.filter(Exq.Query.from_string("value > 22 and value < 23"))
+iex(2)> collection |> Enum.filter(ExQuery.Query.from_string("value > 22 and value < 23"))
 
 [%{"sensor" => "temp", "timestamp" => 1434847757, "value" => 22.9},
  %{"sensor" => "temp", "timestamp" => 1434847727, "value" => 22.3},
