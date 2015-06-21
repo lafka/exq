@@ -8,6 +8,8 @@ to let the user reduce result set in a HTTP API and do some common
 calculations without downloading a dataset and doing all the work in
 excel.
 
+## Examples
+
 ```
 iex(1)> collection = [
  %{"timestamp" => 1434847787, "sensor" => "temp", "value" => 23.4},
@@ -23,15 +25,15 @@ iex(1)> collection = [
  %{"timestamp" => 1434847417, "sensor" => "temp", "value" => 22.1},
 ]
 
-iex(2)> collection
-					|> Enum.filter(Exq.Query.from_string("value > 22"))
-					|> Enum.group_by &(Kernel.trunc &1["value"])
+iex(2)> collection |> Enum.filter(Exq.Query.from_string("value > 22 and value < 23"))
 
 [%{"sensor" => "temp", "timestamp" => 1434847757, "value" => 22.9},
  %{"sensor" => "temp", "timestamp" => 1434847727, "value" => 22.3},
  %{"sensor" => "temp", "timestamp" => 1434847447, "value" => 22.2},
  %{"sensor" => "temp", "timestamp" => 1434847417, "value" => 22.1}]
 ```
+
+## Future plans
 
 Depending on time and interest support for specifying these options
 may be added in the future:
