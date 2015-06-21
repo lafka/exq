@@ -1,0 +1,2 @@
+defmodule ExQuery do
+end
