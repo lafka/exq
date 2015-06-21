@@ -6,7 +6,6 @@
   - add negative element access: `"last-element" == list.-1`
  - Add support for tuple constructs
   - element access: `:ok == touple.0`
- - Support for strings
 
 Nice to have:
  - String wildcards "2015-05-03T*"

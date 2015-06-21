@@ -7,6 +7,14 @@ defmodule ExQuery.Query.Parser do
     defexception message: nil
   end
 
+  @elemname quote(do: exq_e)
+  @tokens [
+    "and", "or",
+    "==", "!=", "!",
+    ">", "<", ">=", "<=",
+    "+", "-", "*", "/"
+  ]
+
   @doc """
   A query consists of k/v pairs separated by ~r/(,\s?| OR | AND )/
   expressions. They may be grouped together using `( <query> )`.
@@ -21,9 +29,10 @@ defmodule ExQuery.Query.Parser do
     true
   """
   def from_string(buf) do
-    {clause, guards} = Regex.split(~r/\s/, buf)
-      |> group_controlflow
-      |> tokens_to_ast {%{}, []}
+    {tokens, vars} = tokenize buf
+
+    {clause, guards} = tokens |> group_controlflow
+                              |> tokens_to_ast {vars, []}
 
     destruct = {:%{}, [], Enum.map(clause, fn({lookup, var}) ->
       {lookup, Macro.var(var, __MODULE__)}
@@ -43,10 +52,77 @@ defmodule ExQuery.Query.Parser do
         end)
     end
 
-    #IO.puts Macro.to_string expr
-
     {fun, _x} = Code.eval_quoted expr
     fun
+  end
+
+  defp tokenize(buf), do: tokenize(buf, %{})
+  defp tokenize("", vars), do: {[], vars}
+  defp tokenize(<<byte :: binary-size(1), rest :: binary()>> = t, vars) when byte in ["\"", "'"] do
+    # fix strings
+    [string | rest] = Regex.split ~r/(?![^\\])#{byte}/, rest, parts: 2
+    {tokens, vars} = tokenize tail_to_string(rest), vars
+    {[ trim_quotes(string, byte) | tokens ], vars}
+  end
+  defp tokenize(buf, vars) do
+    [token | rest ] = String.split buf, " ", parts: 2
+    {token, vars} = map_token token, vars
+
+    {tokens, vars} = tokenize tail_to_string(rest), vars
+    {[ token | tokens ], vars}
+  end
+
+  defp tail_to_string([]), do: ""
+  defp tail_to_string([rest]), do: rest
+  defp trim_quotes(buf, byte) do
+    case String.ends_with? buf, byte do
+      true ->
+        String.replace(buf, ~r/\\#{byte}/, byte)
+                      |> String.replace ~r/#{byte}$/, ""
+
+      false ->
+        raise ParseException , message: "could not find matching quote `#{byte}`"
+    end
+  end
+
+  defp map_token(":" <> atom, vars), do: {to_atom(atom), vars}
+  defp map_token(<<byte, _ :: binary()>> = token, vars) when byte in ?0..?9, do: {to_number(token), vars}
+  defp map_token(token, vars) when token in @tokens, do: {token, vars}
+  defp map_token(token, vars) do
+    case vars[token] do
+      nil ->
+        varname = :"var_#{Map.size(vars)}"
+        {Macro.var(varname, __MODULE__), Map.put(vars, token, varname)}
+
+      varname ->
+        {Macro.var(varname, __MODULE__), vars}
+    end
+  end
+
+  defp to_atom(atom) do
+    String.to_existing_atom atom
+  rescue e in ArgumentError ->
+    raise ParseException, message: "no such keyword `#{atom}`"
+  end
+
+
+  defp to_number(buf) do
+    case Integer.parse buf do
+      {int, ""} ->
+        int
+
+      {_, "." <> _} ->
+        case Float.parse buf do
+          {float, ""} ->
+            float
+
+          {_, _} ->
+            raise ParseException, message: "error parsing '#{buf}' as float"
+        end
+
+      {_, _} ->
+        raise ParseException, message: "error parsing '#{buf}' as integer"
+    end
   end
 
   defp group_controlflow(tokens) do
@@ -59,14 +135,6 @@ defmodule ExQuery.Query.Parser do
     end
   end
 
-
-  @elemname quote(do: exq_e)
-  @tokens [
-    "and", "or",
-    "==", "!=", "!",
-    ">", "<", ">=", "<=",
-    "+", "-", "*", "/"
-  ]
 
   # acc := {%{} for destruction, current ast()}
   # rewrite groups to ast nodes
@@ -87,50 +155,6 @@ defmodule ExQuery.Query.Parser do
   #defp tokens_to_ast([token | _] = tokens, _acc) when token in @tokens do
   #  raise ParseException, message: "missing left hand expr in `#{Enum.join(tokens, " ")}`"
   #end
-
-
-  # make keywords
-  defp tokens_to_ast([":" <> atom | rest], acc) do
-    tokens_to_ast [String.to_existing_atom(atom) | rest], acc
-  rescue e in ArgumentError ->
-    raise ParseException, message: "no such keyword `#{atom}`"
-  end
-
-  # rewrite integer/floats
-  defp tokens_to_ast([<<byte, _ :: binary()>> = token | rest], acc)
-    when byte in ?0..?9 do
-    case Integer.parse token do
-      {int, ""} ->
-        tokens_to_ast [int | rest], acc
-
-      {_, "." <> _} ->
-        case Float.parse token do
-          {float, ""} ->
-            tokens_to_ast [float | rest], acc
-
-          {_, _} ->
-            raise ParseException, message: "error parsing '#{token}' as float"
-        end
-
-      {_, _} ->
-        raise ParseException, message: "error parsing '#{token}' as integer"
-    end
-  end
-
-  # If it's still a string it should be variable name, rewrite
-  defp tokens_to_ast([buf | rest], {clause, currexpr} = acc) when is_binary(buf) do
-
-    case clause[buf] do
-      nil ->
-        varname = :"var_#{Map.size(clause)}"
-        tokens_to_ast [Macro.var(varname, __MODULE__) | rest],
-                      {Map.put(clause, buf, varname), currexpr}
-
-      varname ->
-        {clause, Macro.var(varname, __MODULE__)}
-        tokens_to_ast [Macro.var(varname, __MODULE__) | rest], acc
-    end
-  end
 
   # return last argument
   defp tokens_to_ast([e], {clause, _currexpr} ) do

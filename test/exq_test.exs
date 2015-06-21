@@ -86,6 +86,18 @@ defmodule ExqQueryTest do
     end
   end
 
+  test "string edge cases" do
+    matches = [
+      {:string_spaced_double_quote, "st r ", ExQuery.Query.Parser.from_string("string == \"st r \"")},
+      {:string_escaped_double_quote, "st\"r", ExQuery.Query.Parser.from_string("string == \"st\\\"r\"")},
+      {:string_escaped_single_quote, "st'r", ExQuery.Query.Parser.from_string("string == 'st\'r'")},
+    ]
+
+    for {t, val, match} <- matches do
+      assert true === match.(%{"string" => val}), "failed to match valid type: #{t}"
+    end
+  end
+
     #"and", "or",
     #"==", "!=", "!",
     ##">", "<", ">=", "<=",
