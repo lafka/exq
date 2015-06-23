@@ -36,8 +36,8 @@ defmodule ExQuery.Query.Parser do
 
 
     destruct = {:%{}, [], Enum.map(clause, fn
-      ({lookup, var}) when is_atom(var) ->
-        {lookup, Macro.var(var, __MODULE__)}
+      ({lookup, {_, _, _} = var}) ->
+        {lookup, var}
 
       # unpack first level if the key is nested
       ({_lookup, {exportas, {:%{}, _, [t]}}}) ->
@@ -53,7 +53,7 @@ defmodule ExQuery.Query.Parser do
 
       _ ->
         quote(do: fn
-          (unquote(destruct)) when unquote(guards) -> true
+          (unquote(destruct)) -> unquote(guards)
           (_) -> false
         end)
     end
@@ -87,6 +87,7 @@ defmodule ExQuery.Query.Parser do
   defp map_token(":" <> atom, vars), do: {to_atom(atom), vars}
   defp map_token(<<byte, _ :: binary()>> = token, vars) when byte in ?0..?9, do: {to_number(token), vars}
   defp map_token(token, vars) when token in @tokens, do: {token, vars}
+  defp map_token("in", vars), do: {"in", vars}
   defp map_token(token, vars) do
     # slighly messy. Either we return the token => :#{varname}
     # or we return {:#{varname}, destruction}
@@ -95,7 +96,7 @@ defmodule ExQuery.Query.Parser do
         exportas = :"var_#{Map.size(vars)}"
         case String.split token, "." do
           [^token] ->
-            {exportas, Map.put(vars, token, exportas)}
+            {Macro.var(exportas, __MODULE__), Map.put(vars, token, Macro.var(exportas, __MODULE__))}
 
           parts ->
             exportas = Macro.var exportas, __MODULE__
@@ -125,10 +126,17 @@ defmodule ExQuery.Query.Parser do
       {int, ""} ->
         int
 
+      # convert to range
+      {int, ".." <> rest} ->
+        Range.new int, to_number rest
+
       {_, "." <> _} ->
         case Float.parse buf do
           {float, ""} ->
             float
+
+          {float, ".." <> rest} ->
+            Range.new float, to_number rest
 
           {_, _} ->
             raise ParseException, message: "error parsing '#{buf}' as float"
@@ -172,5 +180,17 @@ defmodule ExQuery.Query.Parser do
       expr = quote do: unquote(fun)(unquote(lhs), unquote(rhs))
       {clause, expr}
     end
+  end
+
+  defp tokens_to_ast([lhs, "in" | rhs], {clause, _expr} = acc) do
+    {clause, rhs} = tokens_to_ast rhs, {clause, nil}
+    expr = cond do
+      Range.range?(rhs) ->
+        quote(do: unquote(lhs) in unquote(Macro.escape(rhs)))
+
+      true ->
+        quote(do: is_list(unquote(rhs)) and Enum.member?(unquote(rhs), unquote(lhs)))
+    end
+    {clause, expr}
   end
 end

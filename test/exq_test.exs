@@ -97,4 +97,32 @@ defmodule ExqQueryTest do
     assert true === match.(%{"a" => %{"b" => %{"c" => 1}}})
     assert false=== match.(%{"a" => %{"b" => 3}})
   end
+
+  test "`in` expr" do
+    match = Query.from_string "a in b"
+
+    assert true === match.(%{"a" => 1, "b" => [1,2,3]})
+    assert false === match.(%{"a" => 2, "b" => [4,5,6]})
+    assert false === match.(%{"a" => 2, "b" => "lol"})
+
+    # ensure nested keys don't fuck up
+    match = Query.from_string "a.v in a.list"
+    assert true === match.(%{"a" => %{"v" => 1, "list" => [1,2,3]}})
+
+    # Check that we can do ranges
+    match = Query.from_string "a in 0..2"
+    assert true === match.(%{"a" => 0})
+    assert true === match.(%{"a" => 1})
+    assert true === match.(%{"a" => 2})
+    assert false === match.(%{"a" => -1})
+    assert false === match.(%{"a" => 3})
+
+    # And ranges with floats
+    match = Query.from_string "a in 0.5..2.5"
+    assert true === match.(%{"a" => 0.5})
+    assert true === match.(%{"a" => 1.32})
+    assert true === match.(%{"a" => 2.5})
+    assert false === match.(%{"a" => 2.55})
+    assert false === match.(%{"a" => 0.49})
+  end
 end
