@@ -34,8 +34,14 @@ defmodule ExQuery.Query.Parser do
     {clause, guards} = tokens |> group_controlflow
                               |> tokens_to_ast {vars, []}
 
-    destruct = {:%{}, [], Enum.map(clause, fn({lookup, var}) ->
-      {lookup, Macro.var(var, __MODULE__)}
+
+    destruct = {:%{}, [], Enum.map(clause, fn
+      ({lookup, var}) when is_atom(var) ->
+        {lookup, Macro.var(var, __MODULE__)}
+
+      # unpack first level if the key is nested
+      ({_lookup, {exportas, {:%{}, _, [t]}}}) ->
+        t
     end)}
 
     expr = case guards do
@@ -82,13 +88,28 @@ defmodule ExQuery.Query.Parser do
   defp map_token(<<byte, _ :: binary()>> = token, vars) when byte in ?0..?9, do: {to_number(token), vars}
   defp map_token(token, vars) when token in @tokens, do: {token, vars}
   defp map_token(token, vars) do
+    # slighly messy. Either we return the token => :#{varname}
+    # or we return {:#{varname}, destruction}
     case vars[token] do
       nil ->
-        varname = :"var_#{Map.size(vars)}"
-        {Macro.var(varname, __MODULE__), Map.put(vars, token, varname)}
+        exportas = :"var_#{Map.size(vars)}"
+        case String.split token, "." do
+          [^token] ->
+            {exportas, Map.put(vars, token, exportas)}
+
+          parts ->
+            exportas = Macro.var exportas, __MODULE__
+            destruction = Enum.reduce Enum.reverse(parts), exportas, fn(part, acc) ->
+              quote do: %{unquote(part) => unquote(acc)}
+            end
+            {exportas, Map.put(vars, token, {exportas, destruction})}
+        end
+
+      {varname, _} ->
+        {varname, vars}
 
       varname ->
-        {Macro.var(varname, __MODULE__), vars}
+        {varname, vars}
     end
   end
 

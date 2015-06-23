@@ -1,8 +1,9 @@
 defmodule ExqQueryTest do
   use ExUnit.Case
 
-  alias ExQuery.Query.Parser
+  alias ExQuery.Query
   alias ExQuery.Query.Parser.ParseException
+
   doctest ExQuery.Query.Parser
 
   test "`and` expr" do
@@ -91,14 +92,9 @@ defmodule ExqQueryTest do
     assert true === match.(%{"a" => "b", "c" => "d"}), "multiple strings in query"
   end
 
-  # who have quotes within their strings anyway!?
-  #test "string edge cases" do
-  #  spaced = ExQuery.Query.Parser.from_string("string == \"st r \"")
-  #  escaped_d = ExQuery.Query.Parser.from_string("string == \"st\\\"r\"")
-  #  escaped_s = ExQuery.Query.Parser.from_string("string == 'st\'r'")
-
-  #  assert true === spaced.(%{"string" => "st r "})
-  #  assert true === escaped_d.(%{"string" => "st\"r"})
-  #  assert true === escaped_d.(%{"string" => "st\'r"})
-  #end
+  test "nested keys" do
+    match = Query.from_string "a.b.c == 1 or a.b.c < 2 and a.b.c > 0"
+    assert true === match.(%{"a" => %{"b" => %{"c" => 1}}})
+    assert false=== match.(%{"a" => %{"b" => 3}})
+  end
 end
