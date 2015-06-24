@@ -6,5 +6,5 @@ defmodule ExQuery.Query do
 
   See `Spew.Query.Parser.from_string/1`
   """
-  def from_string(buf), do: Parser.from_string(buf)
+  def from_string(buf, struct \\ nil), do: Parser.from_string(buf, struct)
 end

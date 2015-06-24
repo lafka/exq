@@ -125,4 +125,13 @@ defmodule ExqQueryTest do
     assert false === match.(%{"a" => 2.55})
     assert false === match.(%{"a" => 0.49})
   end
+
+  defmodule S do
+    defstruct key: nil, value: nil
+  end
+
+  test "struct: map keys to atom" do
+    match = Query.from_string "key == 'a' and value > 3", S
+    assert true === match.(%S{key: "a", value: 4})
+  end
 end

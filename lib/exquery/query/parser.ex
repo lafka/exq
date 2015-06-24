@@ -4,7 +4,7 @@ defmodule ExQuery.Query.Parser do
   """
 
   defmodule ParseException do
-    defexception message: nil
+    defexception message: nil, param: nil
   end
 
   @elemname quote(do: exq_e)
@@ -28,14 +28,14 @@ defmodule ExQuery.Query.Parser do
     iex> ExQuery.Query.Parser.from_string("k == :key").(%{"k" => :key})
     true
   """
-  def from_string(buf) do
+  def from_string(buf, struct \\ nil) do
     {tokens, vars} = tokenize buf
 
     {clause, guards} = tokens |> group_controlflow
                               |> tokens_to_ast {vars, []}
 
 
-    destruct = {:%{}, [], Enum.map(clause, fn
+    mapdestruct = {:%{}, [], Enum.map(clause, fn
       ({lookup, {_, _, _} = var}) ->
         {lookup, var}
 
@@ -43,6 +43,25 @@ defmodule ExQuery.Query.Parser do
       ({_lookup, {exportas, {:%{}, _, [t]}}}) ->
         t
     end)}
+
+    destruct = if nil === struct do
+      mapdestruct
+    else
+      # Put in a struct and rewrite keys to atom, but verify that the
+      # key actually exists
+      keys = Map.keys(struct.__struct__) |> Enum.map(&Atom.to_string/1)
+      {:%{}, [], vars} = mapdestruct
+      vars = Enum.map vars, fn({k, v}) ->
+        unless Enum.member?(keys, k) do
+          raise ParseException, message: "unknown key `#{k}`", param: k
+        end
+
+        k = String.to_existing_atom k
+        {k, v}
+      end
+      [Elixir | struct] = String.split("#{struct}", ".") |> Enum.map(&String.to_existing_atom/1)
+      {:%, [], [{:__aliases__, [alias: false], struct}, {:%{}, [], vars}]}
+    end
 
     expr = case guards do
       [] ->
