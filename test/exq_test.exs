@@ -96,6 +96,10 @@ defmodule ExqQueryTest do
     match = Query.from_string "a.b.c == 1 or a.b.c < 2 and a.b.c > 0"
     assert true === match.(%{"a" => %{"b" => %{"c" => 1}}})
     assert false=== match.(%{"a" => %{"b" => 3}})
+
+    match = Query.from_string "a/b.c == 1"
+    assert true === match.(%{"a/b" => %{"c" => 1}})
+    assert false=== match.(%{"a/b" => %{"b" => 3}})
   end
 
   test "`in` expr" do
