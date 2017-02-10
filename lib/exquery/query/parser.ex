@@ -7,7 +7,6 @@ defmodule ExQuery.Query.Parser do
     defexception message: nil, param: nil
   end
 
-  @elemname quote(do: exq_e)
   @tokens [
     "and", "or",
     "==", "!=", "!",
@@ -31,8 +30,8 @@ defmodule ExQuery.Query.Parser do
   def from_string(buf, struct \\ nil) do
     {tokens, vars} = tokenize buf
 
-    {clause, guards} = tokens |> group_controlflow
-                              |> tokens_to_ast {vars, []}
+    {clause, guards} = tokens |> group_controlflow()
+                              |> tokens_to_ast({vars, []})
 
 
     mapdestruct = {:%{}, [], Enum.map(clause, fn
@@ -40,7 +39,7 @@ defmodule ExQuery.Query.Parser do
         {lookup, var}
 
       # unpack first level if the key is nested
-      ({_lookup, {exportas, {:%{}, _, [t]}}}) ->
+      ({_lookup, {_exportas, {:%{}, _, [t]}}}) ->
         t
     end)}
 
@@ -135,7 +134,7 @@ defmodule ExQuery.Query.Parser do
 
   defp to_atom(atom) do
     String.to_existing_atom atom
-  rescue e in ArgumentError ->
+  rescue _e in ArgumentError ->
     raise ParseException, message: "no such keyword `#{atom}`"
   end
 
@@ -179,7 +178,7 @@ defmodule ExQuery.Query.Parser do
 
   # rewrite groups to ast nodes
   defp tokens_to_ast([], acc), do: acc
-  defp tokens_to_ast([ [_|_] = group | rest], {clause, currexpr}) do
+  defp tokens_to_ast([ [_|_] = group | rest], {clause, _currexpr}) do
     {clause, expr} = tokens_to_ast group, {clause, nil}
     tokens_to_ast [expr | rest], {clause, expr}
   end
@@ -192,7 +191,7 @@ defmodule ExQuery.Query.Parser do
   for token <- @tokens do
     fun = String.to_atom(token)
 
-    defp tokens_to_ast([lhs, unquote(token) | rhs], {clause, _expr} = acc) do
+    defp tokens_to_ast([lhs, unquote(token) | rhs], {clause, _expr}) do
       {clause, rhs} = tokens_to_ast rhs, {clause, nil}
 
       fun = unquote(fun)
@@ -201,7 +200,7 @@ defmodule ExQuery.Query.Parser do
     end
   end
 
-  defp tokens_to_ast([lhs, "in" | rhs], {clause, _expr} = acc) do
+  defp tokens_to_ast([lhs, "in" | rhs], {clause, _expr}) do
     {clause, rhs} = tokens_to_ast rhs, {clause, nil}
     expr = cond do
       Range.range?(rhs) ->
